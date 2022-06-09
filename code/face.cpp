@@ -99,6 +99,10 @@ size_t Face::getId() {
     return _id;
 }
 
+float Face::getMaleScore() {
+    return _maleScore;
+}
+
 void Face::ageGenderEnable(bool value) {
     _isAgeGenderEnabled = value;
 }
@@ -155,7 +159,7 @@ float calcMean(const cv::Mat& src) {
 
 Face::Ptr matchFace(cv::Rect rect, std::list<Face::Ptr>& faces) {
     Face::Ptr face(nullptr);
-    float maxIoU = 0.4f;
+    float maxIoU = 0.3f;
     for (auto&& f : faces) {
         float iou = calcIoU(rect, f->_location);
         if (iou > maxIoU) {

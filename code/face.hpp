@@ -38,6 +38,7 @@ public:
     const std::vector<float>& getLandmarks();
     std::vector<float>& getReidFeatures();
     size_t getId();
+    float getMaleScore();
 
     void ageGenderEnable(bool value);
     void emotionsEnable(bool value);

@@ -200,6 +200,14 @@ cv::Point p1(0, 0);
 cv::Point p2(0, 0);
 bool IsROI = false;
 
+struct Customer
+{
+public:
+    Face::Ptr customer_face;
+    std::string start_time;
+    std::string end_time;
+};
+
 void onMouse(int event, int x, int y, int flags, void* param)
 {
     switch (event)
@@ -400,7 +408,7 @@ int main(int argc, char *argv[]) {
         slog::info << "Make Output Directory " << std::string(buf) << " Success!" << slog::endl;
     std::string log_path = path + "log_" + std::string(buf) + ".csv";
     std::ofstream log_file(log_path.c_str(), std::ios_base::out | std::ios_base::app);
-    log_file << "datetime, frame#, faceID, gender, age, age2\n";
+    log_file << "startTime, endTime, faceID, gender, age, age2\n";
 
 
     Timer timer;
@@ -412,6 +420,9 @@ int main(int argc, char *argv[]) {
     //main ID
     size_t main_id = 0;
     size_t max_size = 0;
+
+    size_t prev_ID = 0;
+    std::map<int, Customer> customers;
 
     std::unique_ptr<ImagesCapture> cap = openImagesCapture(FLAGS_i, FLAGS_loop);
 
@@ -451,7 +462,7 @@ int main(int argc, char *argv[]) {
 
     // Detecting all faces on the first frame and reading the next one
     faceDetector.submitRequest(frame);
-
+    
     auto startTimeNextFrame = std::chrono::steady_clock::now();
     cv::Mat nextFrame = cap->read();
     while (frame.data) {
@@ -556,10 +567,11 @@ int main(int argc, char *argv[]) {
 
                 if ((face == nullptr) ||
                     (((std::abs(intensity_mean - face->_intensity_mean) / face->_intensity_mean) > 0.07f) &&
-                    ((calcDistance(face->getReidFeatures(), faceReidentificator[i], 256) > FLAGS_reid_th)))
+                        ((calcDistance(face->getReidFeatures(), faceReidentificator[i], 256) > FLAGS_reid_th)))
                     ) {
                     face = std::make_shared<Face>(id++, rect);
-                } else {
+                }
+                else {
                     prev_faces.remove(face);
                 }
 
@@ -650,6 +662,20 @@ int main(int argc, char *argv[]) {
             if (f->isReal() && yaw < FLAGS_ang && pitch < FLAGS_ang && roll < FLAGS_ang &&
                 yaw > -(FLAGS_ang) && pitch > -(FLAGS_ang) && roll > -(FLAGS_ang))
             {
+                time_t now = time(0);
+                struct tm tstruct = *localtime(&now);
+                char time_char[80];
+                strftime(time_char, sizeof(time_char), "%m-%d-%H-%M-%S", &tstruct);
+
+                if (customers.find(f->getId()) == customers.end())
+                {
+                    //first detected
+                    customers[f->getId()].start_time = std::string(time_char);
+                }
+
+                customers[f->getId()].customer_face = f;
+                customers[f->getId()].end_time = std::string(time_char);
+
                 // image capture per id
                 std::string filename = std::to_string(f->getId()) + ".jpg";
                 std::ifstream filetest(path + filename);
@@ -658,11 +684,20 @@ int main(int argc, char *argv[]) {
                     cv::imwrite(path + filename, prevFrame/*(rect)*/);
                 }
 
-                log_file << std::string(buf) << ", ";
-                log_file << framesCounter;
-                log_file << ", " << f->getId() << ", ";
-                log_file << (f->isMale() ? "Male" : "Female");
-                log_file << ", " << f->getAge() + 5 << ", " << int((f->getAge() + 5) / 10) << "\n";
+                if (f->getId() != prev_ID)
+                {
+                    auto prev_face = customers[prev_ID].customer_face;
+                    log_file << customers[prev_ID].start_time << ", ";
+                    log_file << customers[prev_ID].end_time;
+                    //log_file << std::string(buf) << ", ";
+                    //log_file << framesCounter;
+                    log_file << ", " << prev_face->getId() << ", ";
+                    log_file << (prev_face->isMale() ? "Male" : "Female");
+                    log_file << ", " << prev_face->getAge() + 5 << ", " << int((prev_face->getAge() + 5) / 10) << "\n";
+
+                    customers.erase(prev_ID);
+                    prev_ID = f->getId();
+                }
             }
         }
 
